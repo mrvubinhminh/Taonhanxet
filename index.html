@@ -6,8 +6,8 @@
     <title>Công cụ Tự động Nhận xét Học bạ</title>
     <!-- Tailwind CSS cho giao diện -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SheetJS để xử lý file Excel (.xlsx) -->
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS Style (Phiên bản hỗ trợ tô màu xuất Excel) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -51,6 +51,7 @@
                 <li>Sau khi kiểm tra kết quả, bấm <strong>"Xuất File XLSX ngay"</strong> để tải file hoàn chỉnh về máy.</li>
                 <li>Lấy file vừa tải về <strong>Upload ngược lên hệ thống nhập điểm</strong> để hoàn thành việc nhập nhận xét.</li>
             </ul>
+            <p class="text-sm text-blue-800 mt-3 italic border-t border-blue-200 pt-2"><i data-lucide="palette" class="w-4 h-4 inline"></i> <strong>Tính năng mới:</strong> Khi xuất file, hệ thống sẽ tự động <strong>tô màu xanh</strong> (Giỏi/Xuất sắc) và <strong>màu đỏ</strong> (Yếu/Kém) vào Excel để thầy/cô dễ dàng rà soát trực quan.</p>
         </div>
 
         <!-- Upload Area -->
@@ -75,6 +76,7 @@
                     <option value="toan" selected>Môn Toán (Mặc định)</option>
                     <option value="van">Môn Ngữ Văn</option>
                     <option value="anh">Môn Tiếng Anh</option>
+                    <option value="hdtn">Hoạt động trải nghiệm (Đánh giá chữ)</option>
                     <option value="chung">Nhận xét Chung (Phù hợp mọi môn)</option>
                 </select>
             </div>
@@ -182,6 +184,21 @@
 
         // Các hàm tạo nhận xét theo điểm
         function getComment(score, subject) {
+            // Ưu tiên xử lý Nhận xét cho môn Hoạt động trải nghiệm (đánh giá bằng văn bản)
+            if (subject === 'hdtn') {
+                return "Học sinh tham gia tương đối đầy đủ các hoạt động trải nghiệm, có ý thức rèn luyện kỹ năng giao tiếp, làm việc nhóm và bước đầu nhận thức được tầm quan trọng của định hướng nghề nghiệp.";
+            }
+
+            // Xử lý chung cho các điểm chữ (Đạt, Chưa đạt, Tốt...) ở các môn khác
+            if (typeof score === 'string') {
+                let s = score.toUpperCase();
+                if (['T', 'TỐT', 'XS', 'HTT'].includes(s)) return "Hoàn thành xuất sắc yêu cầu môn học, kỹ năng thực hành rất tốt.";
+                if (['Đ', 'ĐẠT', 'D', 'K', 'KHÁ'].includes(s)) return "Hoàn thành tốt yêu cầu môn học, có tinh thần thái độ học tập tích cực.";
+                if (['C', 'CĐ', 'CHƯA ĐẠT', 'Y', 'KÉM'].includes(s)) return "Chưa hoàn thành yêu cầu môn học, cần nỗ lực và cố gắng nhiều hơn.";
+                if (['M', 'MIỄN'].includes(s)) return "Miễn đánh giá.";
+                return "Đã tham gia và hoàn thành nội dung học tập.";
+            }
+
             if (subject === 'van') {
                 if (score >= 9.0) return "Cảm thụ văn học xuất sắc, lập luận sắc bén. Hành văn mượt mà, sáng tạo và rất giàu cảm xúc.";
                 if (score >= 8.0) return "Nắm vững kiến thức tác phẩm, kỹ năng viết bài tốt. Diễn đạt trôi chảy, thái độ học tập tích cực.";
@@ -209,6 +226,34 @@
             if (score >= 6.5) return "Hiểu bài, kỹ năng vận dụng khá. Cần rèn luyện tính cẩn thận trong tính toán để tránh sai sót nhỏ.";
             if (score >= 5.0) return "Tiếp thu bài còn chậm, kỹ năng làm bài chưa thuần thục. Cần tập trung và chăm chỉ rèn luyện thêm.";
             return "Chưa nắm vững kiến thức trọng tâm, kỹ năng tính toán còn yếu. Cần thay đổi phương pháp và nỗ lực tối đa.";
+        }
+
+        // Hàm lấy Style (Màu nền, màu chữ) cho file Excel xuất ra
+        function getExcelStyle(score) {
+            if (score === '' || score === undefined) return null;
+            
+            // Xử lý màu cho điểm chữ (Tốt, Đạt, Chưa đạt...)
+            if (typeof score === 'string' && isNaN(parseFloat(score))) {
+                let s = score.toUpperCase();
+                if (['T', 'TỐT', 'XS', 'HTT'].includes(s)) {
+                    return { fill: { fgColor: { rgb: "C6EFCE" } }, font: { color: { rgb: "006100" }, bold: true } }; // Xanh lá
+                }
+                if (['C', 'CĐ', 'CHƯA ĐẠT', 'Y', 'KÉM'].includes(s)) {
+                    return { fill: { fgColor: { rgb: "FFC7CE" } }, font: { color: { rgb: "9C0006" }, bold: true } }; // Đỏ
+                }
+                return null;
+            }
+
+            let s = parseFloat(score);
+            if (!isNaN(s)) {
+                if (s >= 8.0) {
+                    return { fill: { fgColor: { rgb: "C6EFCE" } }, font: { color: { rgb: "006100" }, bold: true } }; // Xanh lá nhạt
+                }
+                if (s < 5.0) {
+                    return { fill: { fgColor: { rgb: "FFC7CE" } }, font: { color: { rgb: "9C0006" }, bold: true } }; // Đỏ nhạt
+                }
+            }
+            return null;
         }
 
         // Ẩn hiện bảng Settings
@@ -293,8 +338,8 @@
 
         function processExcel(data) {
             try {
-                // Đọc file excel
-                const workbook = XLSX.read(data, {type: 'array'});
+                // Đọc file excel (Giữ nguyên styles cũ cellStyles: true)
+                const workbook = XLSX.read(data, {type: 'array', cellStyles: true});
                 
                 // CẢI TIẾN QUAN TRỌNG: Xác định đúng Sheet chứa dữ liệu
                 let sheetName = "Sheet1"; // Ưu tiên số 1: Tìm đúng sheet tên "Sheet1"
@@ -347,7 +392,9 @@
                     let rowPreview = { stt: '', name: '', hk2Score: '', hk2Cmt: '', cnScore: '', cnCmt: '' };
 
                     // Đọc Tên để làm preview (Cột C - Index 2)
-                    const nameCell = sheet[XLSX.utils.encode_cell({c: 2, r: R})];
+                    const nameCellRef = XLSX.utils.encode_cell({c: 2, r: R});
+                    const nameCell = sheet[nameCellRef];
+                    
                     rowPreview.stt = sttCell.v;
                     if(nameCell) rowPreview.name = nameCell.v;
 
@@ -356,20 +403,30 @@
                     const hk2Cell = sheet[hk2CellRef];
                     
                     if (hk2Cell && hk2Cell.v !== undefined) {
-                        let scoreVal = String(hk2Cell.v).trim().replace(',', '.'); // Chuẩn hóa dấu phẩy thành dấu chấm
-                        if (scoreVal !== '' && !isNaN(parseFloat(scoreVal))) {
-                            const scoreHK2 = parseFloat(scoreVal);
-                            const cmtHK2 = getComment(scoreHK2, selectedSubject);
+                        let rawScore = String(hk2Cell.v).trim();
+                        if (rawScore !== '') {
+                            let scoreVal = rawScore.replace(',', '.'); // Chuẩn hóa dấu phẩy thành dấu chấm
+                            let numericScore = parseFloat(scoreVal);
+                            
+                            // Nếu là số thì lấy số, nếu không phải số thì giữ nguyên văn bản (Đ, T, C...)
+                            let finalScore = !isNaN(numericScore) ? numericScore : rawScore;
+                            
+                            const cmtHK2 = getComment(finalScore, selectedSubject);
+                            const cellStyle = getExcelStyle(finalScore);
                             
                             // Ghi vào cột Nội dung Nhận xét HK2 (Cột G = index 6)
                             const cmtHK2CellRef = XLSX.utils.encode_cell({c: 6, r: R});
                             sheet[cmtHK2CellRef] = { t: 's', v: cmtHK2 };
                             
-                            rowPreview.hk2Score = scoreHK2;
+                            // Gắn style màu cho file xuất ra
+                            if (cellStyle) {
+                                sheet[cmtHK2CellRef].s = cellStyle;
+                                if (sheet[hk2CellRef]) sheet[hk2CellRef].s = cellStyle;
+                            }
+                            
+                            rowPreview.hk2Score = finalScore;
                             rowPreview.hk2Cmt = cmtHK2;
                             hasData = true;
-                        } else {
-                            rowPreview.hk2Score = hk2Cell.v; // In ra kí tự text nếu có (Miễn, Đ...)
                         }
                     }
 
@@ -378,20 +435,31 @@
                     const cnCell = sheet[cnCellRef];
                     
                     if (cnCell && cnCell.v !== undefined) {
-                        let scoreVal = String(cnCell.v).trim().replace(',', '.'); // Chuẩn hóa dấu phẩy thành dấu chấm
-                        if (scoreVal !== '' && !isNaN(parseFloat(scoreVal))) {
-                            const scoreCN = parseFloat(scoreVal);
-                            const cmtCN = getComment(scoreCN, selectedSubject);
+                        let rawScore = String(cnCell.v).trim();
+                        if (rawScore !== '') {
+                            let scoreVal = rawScore.replace(',', '.'); // Chuẩn hóa dấu phẩy thành dấu chấm
+                            let numericScore = parseFloat(scoreVal);
+                            
+                            // Nếu là số thì lấy số, nếu không phải số thì giữ nguyên văn bản (Đ, T, C...)
+                            let finalScore = !isNaN(numericScore) ? numericScore : rawScore;
+                            
+                            const cmtCN = getComment(finalScore, selectedSubject);
+                            const cellStyle = getExcelStyle(finalScore);
                             
                             // Ghi vào cột Nội dung Nhận xét Cả Năm (Cột J = index 9)
                             const cmtCNCellRef = XLSX.utils.encode_cell({c: 9, r: R});
                             sheet[cmtCNCellRef] = { t: 's', v: cmtCN };
                             
-                            rowPreview.cnScore = scoreCN;
+                            // Gắn style màu cho file xuất ra (Tô màu ưu tiên cả vào Tên học sinh)
+                            if (cellStyle) {
+                                sheet[cmtCNCellRef].s = cellStyle;
+                                if (sheet[cnCellRef]) sheet[cnCellRef].s = cellStyle;
+                                if (nameCell) nameCell.s = cellStyle; 
+                            }
+                            
+                            rowPreview.cnScore = finalScore;
                             rowPreview.cnCmt = cmtCN;
                             hasData = true;
-                        } else {
-                            rowPreview.cnScore = cnCell.v;
                         }
                     }
 
