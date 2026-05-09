@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Công cụ Tự động Nhận xét Học bạ</title>
+    <!-- Tailwind CSS cho giao diện -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS để xử lý file Excel (.xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f3f4f6; }
+        .drag-active { border-color: #3b82f6; background-color: #eff6ff; }
+        /* Tùy chỉnh thanh cuộn cho bảng */
+        .table-container::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 text-gray-800">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center space-x-4">
+            <div class="p-3 bg-blue-100 text-blue-600 rounded-xl">
+                <i data-lucide="file-spreadsheet" class="w-8 h-8"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Công cụ Tự động Nhận xét Học bạ</h1>
+                <p class="text-sm text-gray-500 mt-1">Đọc điểm từ cột E & H, tự động điền lời nhận xét vào cột G & J và xuất file XLSX.</p>
+                <div class="mt-3 inline-flex items-center text-sm font-medium text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
+                    <i data-lucide="graduation-cap" class="w-4 h-4 mr-2"></i>
+                    Tác giả: Thầy Vũ Tiến Lực - Trường THPT Nguyễn Hữu Cảnh - TP Hồ Chí Minh
+                </div>
+            </div>
+        </div>
+
+        <!-- Hướng dẫn sử dụng -->
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-5 rounded-r-xl shadow-sm">
+            <h3 class="font-bold text-blue-800 flex items-center mb-3 text-base">
+                <i data-lucide="info" class="w-5 h-5 mr-2"></i> Hướng dẫn các bước thực hiện:
+            </h3>
+            <ul class="list-decimal list-inside text-sm text-blue-900 space-y-2 ml-1">
+                <li>Mở file mẫu tải từ hệ thống, <strong>hãy xóa các sheet "HuongDan" và "DM_MA_NHAN_XET"</strong> (chỉ giữ lại duy nhất <strong>Sheet1</strong>).</li>
+                <li>Kéo thả hoặc chọn file (đã xóa sheet) tải lên phần mềm này ở khung bên dưới.</li>
+                <li>Chọn <strong>Môn học / Phong cách nhận xét</strong> và bấm nút <strong>"Tạo Nhận Xét & Xem Trước"</strong>.</li>
+                <li>Sau khi kiểm tra kết quả, bấm <strong>"Xuất File XLSX ngay"</strong> để tải file hoàn chỉnh về máy.</li>
+                <li>Lấy file vừa tải về <strong>Upload ngược lên hệ thống nhập điểm</strong> để hoàn thành việc nhập nhận xét.</li>
+            </ul>
+        </div>
+
+        <!-- Upload Area -->
+        <div id="dropZone" class="bg-white rounded-2xl p-10 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center transition-colors duration-200 cursor-pointer hover:bg-gray-50 shadow-sm relative overflow-hidden">
+            <input type="file" id="fileInput" accept=".xlsx, .xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+            <i data-lucide="upload-cloud" class="w-12 h-12 text-gray-400 mb-3"></i>
+            <h3 class="text-lg font-semibold text-gray-700">Tải lên file Excel (.xlsx)</h3>
+            <p class="text-sm text-gray-500 mt-1">Kéo thả file vào đây hoặc click để chọn file mẫu hệ thống (SMAS/VnEdu)</p>
+        </div>
+
+        <!-- Step 2: Xử lý & Xem trước -->
+        <div id="step2Area" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-indigo-200 flex flex-col items-center justify-center space-y-4 text-center">
+            <div class="flex items-center space-x-2 text-green-600 font-medium">
+                <i data-lucide="file-check-2" class="w-6 h-6"></i>
+                <span id="fileNameDisplay">Đã tải file thành công</span>
+            </div>
+            <p class="text-sm text-gray-500">File của bạn đã sẵn sàng. Hãy chọn môn học và bấm xem trước để hệ thống tạo nhận xét.</p>
+            
+            <div class="w-full max-w-sm text-left bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <label for="subjectSelect" class="block text-sm font-medium text-gray-700 mb-1">Môn học / Phong cách nhận xét:</label>
+                <select id="subjectSelect" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 shadow-sm">
+                    <option value="toan" selected>Môn Toán (Mặc định)</option>
+                    <option value="van">Môn Ngữ Văn</option>
+                    <option value="anh">Môn Tiếng Anh</option>
+                    <option value="chung">Nhận xét Chung (Phù hợp mọi môn)</option>
+                </select>
+            </div>
+
+            <button onclick="startPreview()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-6 rounded-lg transition shadow-md flex items-center">
+                <i data-lucide="eye" class="w-5 h-5 mr-2"></i> Tạo Nhận Xét & Xem Trước
+            </button>
+        </div>
+
+        <!-- Bảng Cài đặt Nội dung Nhận xét (Có thể tùy chỉnh nhanh) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center cursor-pointer" onclick="toggleSettings()">
+                <h3 class="font-semibold text-gray-700 flex items-center">
+                    <i data-lucide="settings-2" class="w-5 h-5 mr-2 text-gray-500"></i>
+                    Bảng Tiêu chuẩn Nhận xét (Click để xem/ẩn)
+                </h3>
+                <i data-lucide="chevron-down" id="settingsIcon" class="w-5 h-5 text-gray-500 transition-transform"></i>
+            </div>
+            <div id="settingsPanel" class="p-6 hidden">
+                <p class="text-sm text-gray-500 mb-4">Các mẫu nhận xét dưới đây minh họa cho <strong>Môn Toán</strong>. Nội dung thực tế sẽ tự động thay đổi linh hoạt theo từng môn học bạn chọn ở Bước 2. Lời nhận xét được thiết kế ngắn gọn (< 30 từ).</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div class="border rounded-lg p-3 border-green-200 bg-green-50">
+                        <span class="font-bold text-green-700">9.0 - 10.0 (Xuất sắc):</span>
+                        <p class="mt-1 text-gray-700">Tư duy toán học xuất sắc, chủ động học tập. Nắm vững kiến thức và kỹ năng giải bài nhạy bén.</p>
+                    </div>
+                    <div class="border rounded-lg p-3 border-blue-200 bg-blue-50">
+                        <span class="font-bold text-blue-700">8.0 - 8.9 (Giỏi):</span>
+                        <p class="mt-1 text-gray-700">Nắm vững kiến thức trọng tâm, kỹ năng làm bài tốt. Tư duy nhạy bén, thái độ học tập tích cực.</p>
+                    </div>
+                    <div class="border rounded-lg p-3 border-yellow-200 bg-yellow-50">
+                        <span class="font-bold text-yellow-700">6.5 - 7.9 (Khá):</span>
+                        <p class="mt-1 text-gray-700">Hiểu bài, kỹ năng vận dụng khá. Cần rèn luyện tính cẩn thận trong tính toán để tránh sai sót nhỏ.</p>
+                    </div>
+                    <div class="border rounded-lg p-3 border-orange-200 bg-orange-50">
+                        <span class="font-bold text-orange-700">5.0 - 6.4 (Trung bình):</span>
+                        <p class="mt-1 text-gray-700">Tiếp thu bài còn chậm, kỹ năng làm bài chưa thuần thục. Cần tập trung và chăm chỉ rèn luyện thêm.</p>
+                    </div>
+                    <div class="border rounded-lg p-3 border-red-200 bg-red-50 md:col-span-2">
+                        <span class="font-bold text-red-700">Dưới 5.0 (Cần cố gắng):</span>
+                        <p class="mt-1 text-gray-700">Chưa nắm vững kiến thức trọng tâm, kỹ năng tính toán còn yếu. Cần thay đổi phương pháp và nỗ lực tối đa.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden flex justify-center py-8">
+            <i data-lucide="loader-2" class="w-8 h-8 text-blue-500 animate-spin"></i>
+        </div>
+
+        <!-- Preview & Action Area (Hidden by default) -->
+        <div id="resultArea" class="hidden space-y-6">
+            
+            <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div class="flex items-center space-x-3">
+                    <i data-lucide="check-circle-2" class="w-6 h-6 text-green-500"></i>
+                    <div>
+                        <h3 class="font-semibold text-gray-800">Đã xử lý xong dữ liệu!</h3>
+                        <p id="statsText" class="text-sm text-gray-500">Đã nhận xét tự động cho ... học sinh.</p>
+                    </div>
+                </div>
+                <button onclick="exportExcel()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-5 rounded-lg flex items-center transition-colors shadow-sm">
+                    <i data-lucide="download" class="w-4 h-4 mr-2"></i> Xuất File XLSX ngay
+                </button>
+            </div>
+
+            <!-- Preview Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <h3 class="font-semibold text-gray-700">Xem trước kết quả (Sheet 1)</h3>
+                    <span class="text-xs text-gray-400">Chỉ hiển thị dòng dữ liệu để xem trước</span>
+                </div>
+                <div class="table-container overflow-x-auto max-h-[500px]">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 shadow-sm z-10">
+                            <tr>
+                                <th scope="col" class="px-6 py-3">STT</th>
+                                <th scope="col" class="px-6 py-3 min-w-[150px]">Họ và Tên</th>
+                                <th scope="col" class="px-6 py-3 text-center">Điểm HK2</th>
+                                <th scope="col" class="px-6 py-3 min-w-[250px]">Nhận xét HK2 (Đã tạo)</th>
+                                <th scope="col" class="px-6 py-3 text-center">Điểm Cả Năm</th>
+                                <th scope="col" class="px-6 py-3 min-w-[250px]">Nhận xét CN (Đã tạo)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewTableBody" class="divide-y divide-gray-200 bg-white">
+                            <!-- JS will populate this -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <p class="text-xs text-gray-400 text-center italic">* Ứng dụng xử lý dữ liệu hoàn toàn ngay trên máy của bạn, đảm bảo an toàn thông tin 100%.</p>
+        </div>
+
+    </div>
+
+    <script>
+        // Khởi tạo icons
+        lucide.createIcons();
+
+        let currentWorkbook = null;
+        let originalFileName = "";
+        let loadedFileData = null;
+        const dataStartIndex = 7; // Trong file Excel, dòng tiêu đề phụ nằm ở Row 7 (index 6), Data bắt đầu từ Row 8 (index 7)
+
+        // Các hàm tạo nhận xét theo điểm
+        function getComment(score, subject) {
+            if (subject === 'van') {
+                if (score >= 9.0) return "Cảm thụ văn học xuất sắc, lập luận sắc bén. Hành văn mượt mà, sáng tạo và rất giàu cảm xúc.";
+                if (score >= 8.0) return "Nắm vững kiến thức tác phẩm, kỹ năng viết bài tốt. Diễn đạt trôi chảy, thái độ học tập tích cực.";
+                if (score >= 6.5) return "Hiểu bài, biết cách lập luận cơ bản. Cần rèn luyện thêm vốn từ và cách diễn đạt mạch lạc hơn.";
+                if (score >= 5.0) return "Tiếp thu bài còn chậm, kỹ năng viết chưa tốt. Cần đọc nhiều sách và chăm chỉ rèn luyện cách hành văn.";
+                return "Chưa nắm vững kiến thức trọng tâm, diễn đạt còn lủng củng. Cần thay đổi phương pháp và nỗ lực tối đa.";
+            } 
+            else if (subject === 'anh') {
+                if (score >= 9.0) return "Năng lực ngoại ngữ xuất sắc, từ vựng phong phú. Kỹ năng nghe nói đọc viết toàn diện. Rất đáng khen!";
+                if (score >= 8.0) return "Nắm vững ngữ pháp và từ vựng cơ bản, kỹ năng làm bài tốt. Thái độ học tập môn tiếng Anh rất tích cực.";
+                if (score >= 6.5) return "Hiểu bài, kỹ năng tiếng Anh ở mức khá. Cần trau dồi thêm từ vựng và rèn luyện kỹ năng nghe nói thường xuyên.";
+                if (score >= 5.0) return "Tiếp thu bài chậm, từ vựng và ngữ pháp chưa vững. Cần chăm chỉ học từ mới và làm bài tập nhiều hơn.";
+                return "Chưa nắm vững kiến thức trọng tâm, mất gốc tiếng Anh. Cần thay đổi phương pháp và nỗ lực học lại từ cơ bản.";
+            }
+            else if (subject === 'chung') {
+                if (score >= 9.0) return "Hoàn thành xuất sắc môn học. Nắm vững nền tảng kiến thức, vận dụng linh hoạt. Tinh thần tự học rất cao.";
+                if (score >= 8.0) return "Nắm vững kiến thức trọng tâm, kết quả học tập tốt. Thái độ học tập trên lớp nghiêm túc, luôn nỗ lực.";
+                if (score >= 6.5) return "Hiểu bài và có kỹ năng vận dụng khá. Cần rèn thêm sự tập trung để kết quả học tập bứt phá hơn.";
+                if (score >= 5.0) return "Đạt yêu cầu cơ bản nhưng tiếp thu còn chậm. Cần chủ động ôn tập và chú ý nghe giảng nhiều hơn.";
+                return "Kết quả chưa đạt yêu cầu do thiếu tập trung. Em cần nỗ lực tối đa và nghiêm túc cải thiện thái độ học.";
+            }
+            // Mặc định là Toán (toan)
+            if (score >= 9.0) return "Tư duy toán học xuất sắc, chủ động học tập. Nắm vững kiến thức và kỹ năng giải bài nhạy bén.";
+            if (score >= 8.0) return "Nắm vững kiến thức trọng tâm, kỹ năng làm bài tốt. Tư duy nhạy bén, thái độ học tập tích cực.";
+            if (score >= 6.5) return "Hiểu bài, kỹ năng vận dụng khá. Cần rèn luyện tính cẩn thận trong tính toán để tránh sai sót nhỏ.";
+            if (score >= 5.0) return "Tiếp thu bài còn chậm, kỹ năng làm bài chưa thuần thục. Cần tập trung và chăm chỉ rèn luyện thêm.";
+            return "Chưa nắm vững kiến thức trọng tâm, kỹ năng tính toán còn yếu. Cần thay đổi phương pháp và nỗ lực tối đa.";
+        }
+
+        // Ẩn hiện bảng Settings
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            const icon = document.getElementById('settingsIcon');
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                panel.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+
+        // Xử lý sự kiện kéo thả file
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-active'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-active'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            handleFiles(this.files);
+        });
+
+        function handleFiles(files) {
+            if(files.length === 0) return;
+            const file = files[0];
+            originalFileName = file.name;
+            
+            if(!originalFileName.endsWith('.xlsx') && !originalFileName.endsWith('.xls')) {
+                alert('Vui lòng tải lên file định dạng Excel (.xlsx hoặc .xls)');
+                return;
+            }
+
+            // Hiện Step 2 thay vì xử lý luôn
+            document.getElementById('fileNameDisplay').textContent = "Đã chọn file: " + file.name;
+            document.getElementById('step2Area').classList.remove('hidden');
+            document.getElementById('resultArea').classList.add('hidden');
+            document.getElementById('loadingState').classList.add('hidden');
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                loadedFileData = new Uint8Array(e.target.result);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function startPreview() {
+            if(!loadedFileData) return;
+            
+            // Hiện loading và ẩn vùng Step 2
+            document.getElementById('step2Area').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            
+            // Timeout nhỏ để UI kịp render vòng xoay loading
+            setTimeout(() => {
+                processExcel(loadedFileData);
+            }, 150);
+        }
+
+        function processExcel(data) {
+            try {
+                // Đọc file excel
+                const workbook = XLSX.read(data, {type: 'array'});
+                
+                // CẢI TIẾN QUAN TRỌNG: Xác định đúng Sheet chứa dữ liệu
+                let sheetName = "Sheet1"; // Ưu tiên số 1: Tìm đúng sheet tên "Sheet1"
+                
+                if (!workbook.Sheets[sheetName]) {
+                    // Ưu tiên số 2: Tìm các biến thể của chữ Sheet1 (viết hoa/thường, có dấu cách)
+                    const foundName = workbook.SheetNames.find(name => name.trim().toLowerCase() === 'sheet1' || name.trim().toLowerCase() === 'sheet 1');
+                    if (foundName) {
+                        sheetName = foundName;
+                    } else {
+                        // Ưu tiên số 3: Lấy sheet không phải hướng dẫn
+                        sheetName = workbook.SheetNames.find(name => !name.toLowerCase().includes('huongdan') && !name.toLowerCase().includes('dm_ma')) || workbook.SheetNames[0];
+                    }
+                }
+
+                const sheet = workbook.Sheets[sheetName];
+
+                if (!sheet || !sheet['!ref']) {
+                    alert('Không tìm thấy dữ liệu trên ' + sheetName + ' hoặc sheet trống.');
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('step2Area').classList.remove('hidden');
+                    return;
+                }
+
+                // Xác định vùng dữ liệu hiện tại
+                let range = XLSX.utils.decode_range(sheet['!ref']);
+                
+                // Mở rộng range để bao phủ đến cột J (index 9) nếu chưa có
+                if(range.e.c < 9) {
+                    range.e.c = 9;
+                }
+
+                let processedCount = 0;
+                let previewData = [];
+
+                // Lấy môn học được chọn
+                const selectedSubject = document.getElementById('subjectSelect') ? document.getElementById('subjectSelect').value : 'toan';
+
+                // Lặp qua các dòng (Từ dòng số 8 - index 7)
+                for(let R = dataStartIndex; R <= range.e.r; ++R) {
+                    // Đọc STT đầu tiên để kiểm tra có phải dòng dữ liệu học sinh không
+                    const sttCell = sheet[XLSX.utils.encode_cell({c: 0, r: R})];
+                    
+                    // Nếu cột A không có STT (VD: dòng trống, dòng chữ ký cuối trang), thì bỏ qua
+                    if (!sttCell || sttCell.v === undefined || String(sttCell.v).trim() === '') {
+                        continue;
+                    }
+
+                    let hasData = false;
+                    let rowPreview = { stt: '', name: '', hk2Score: '', hk2Cmt: '', cnScore: '', cnCmt: '' };
+
+                    // Đọc Tên để làm preview (Cột C - Index 2)
+                    const nameCell = sheet[XLSX.utils.encode_cell({c: 2, r: R})];
+                    rowPreview.stt = sttCell.v;
+                    if(nameCell) rowPreview.name = nameCell.v;
+
+                    // --- XỬ LÝ HK2 (Đọc Cột E=4, Ghi Cột G=6) ---
+                    const hk2CellRef = XLSX.utils.encode_cell({c: 4, r: R});
+                    const hk2Cell = sheet[hk2CellRef];
+                    
+                    if (hk2Cell && hk2Cell.v !== undefined) {
+                        let scoreVal = String(hk2Cell.v).trim().replace(',', '.'); // Chuẩn hóa dấu phẩy thành dấu chấm
+                        if (scoreVal !== '' && !isNaN(parseFloat(scoreVal))) {
+                            const scoreHK2 = parseFloat(scoreVal);
+                            const cmtHK2 = getComment(scoreHK2, selectedSubject);
+                            
+                            // Ghi vào cột Nội dung Nhận xét HK2 (Cột G = index 6)
+                            const cmtHK2CellRef = XLSX.utils.encode_cell({c: 6, r: R});
+                            sheet[cmtHK2CellRef] = { t: 's', v: cmtHK2 };
+                            
+                            rowPreview.hk2Score = scoreHK2;
+                            rowPreview.hk2Cmt = cmtHK2;
+                            hasData = true;
+                        } else {
+                            rowPreview.hk2Score = hk2Cell.v; // In ra kí tự text nếu có (Miễn, Đ...)
+                        }
+                    }
+
+                    // --- XỬ LÝ CẢ NĂM (Đọc Cột H=7, Ghi Cột J=9) ---
+                    const cnCellRef = XLSX.utils.encode_cell({c: 7, r: R});
+                    const cnCell = sheet[cnCellRef];
+                    
+                    if (cnCell && cnCell.v !== undefined) {
+                        let scoreVal = String(cnCell.v).trim().replace(',', '.'); // Chuẩn hóa dấu phẩy thành dấu chấm
+                        if (scoreVal !== '' && !isNaN(parseFloat(scoreVal))) {
+                            const scoreCN = parseFloat(scoreVal);
+                            const cmtCN = getComment(scoreCN, selectedSubject);
+                            
+                            // Ghi vào cột Nội dung Nhận xét Cả Năm (Cột J = index 9)
+                            const cmtCNCellRef = XLSX.utils.encode_cell({c: 9, r: R});
+                            sheet[cmtCNCellRef] = { t: 's', v: cmtCN };
+                            
+                            rowPreview.cnScore = scoreCN;
+                            rowPreview.cnCmt = cmtCN;
+                            hasData = true;
+                        } else {
+                            rowPreview.cnScore = cnCell.v;
+                        }
+                    }
+
+                    if(hasData) {
+                        processedCount++;
+                        previewData.push(rowPreview);
+                    }
+                }
+
+                // Cập nhật lại range sau khi thêm dữ liệu
+                sheet['!ref'] = XLSX.utils.encode_range(range);
+                
+                // Lưu lại workbook đã sửa vào biến toàn cục
+                currentWorkbook = workbook;
+
+                // Cập nhật UI
+                document.getElementById('statsText').innerText = `Đã tự động tạo nhận xét cho ${processedCount} học sinh.`;
+                renderPreview(previewData);
+
+                // Ẩn loading, hiện result
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('resultArea').classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                alert('Có lỗi xảy ra khi đọc file. Vui lòng đảm bảo file đúng định dạng mẫu.');
+                document.getElementById('loadingState').classList.add('hidden');
+            }
+        }
+
+        function renderPreview(data) {
+            const tbody = document.getElementById('previewTableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100';
+                
+                // Format điểm bằng màu
+                const getScoreColor = (score) => {
+                    if(score === '') return '';
+                    let s = parseFloat(score);
+                    if(isNaN(s)) return 'text-gray-600';
+                    if(s >= 8) return 'text-blue-600 font-bold';
+                    if(s >= 6.5) return 'text-green-600 font-bold';
+                    if(s >= 5) return 'text-yellow-600 font-bold';
+                    return 'text-red-600 font-bold';
+                };
+
+                tr.innerHTML = `
+                    <td class="px-6 py-3 font-medium text-gray-900">${row.stt}</td>
+                    <td class="px-6 py-3 font-medium text-gray-900">${row.name}</td>
+                    <td class="px-6 py-3 text-center ${getScoreColor(row.hk2Score)}">${row.hk2Score}</td>
+                    <td class="px-6 py-3 text-gray-600">${row.hk2Cmt}</td>
+                    <td class="px-6 py-3 text-center ${getScoreColor(row.cnScore)}">${row.cnScore}</td>
+                    <td class="px-6 py-3 text-gray-600">${row.cnCmt}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportExcel() {
+            if(!currentWorkbook) return;
+            
+            // Tạo tên file mới
+            let newFileName = originalFileName;
+            if(newFileName.endsWith('.xlsx')) {
+                newFileName = newFileName.replace('.xlsx', '_Da_Nhan_Xet.xlsx');
+            } else if (newFileName.endsWith('.xls')) {
+                newFileName = newFileName.replace('.xls', '_Da_Nhan_Xet.xlsx'); // Lưu mặc định đuôi mới xlsx
+            } else {
+                newFileName += '_Da_Nhan_Xet.xlsx';
+            }
+
+            // Xuất file (SheetJS sẽ tự giữ lại hầu hết cấu trúc merge cells và thông tin sheet)
+            XLSX.writeFile(currentWorkbook, newFileName);
+        }
+    </script>
+</body>
+</html>
